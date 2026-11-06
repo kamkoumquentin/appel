@@ -1,0 +1,363 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Barre de sélection des interfaces */
+.switcher-bar {
+    background-color: #111b21;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.switch-btn {
+    background-color: #222d34;
+    color: #8696a0;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.switch-btn.active {
+    background-color: #00a884;
+    color: #ffffff;
+}
+
+/* Modal Overlay fixe pour chaque vue */
+.view-container {   
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(11, 20, 26, 0.95);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    padding: 0;
+}
+
+.view-container.active {
+    display: flex;
+}
+
+/* Application Container */
+.app-container {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    max-width: 480px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: max(20px, 4vh) 16px 20px 16px;
+    background-color: #0b141a;
+    color: #ffffff;
+}
+
+#remoteVideo {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: none;
+    width: 100%;
+    height: 100%;
+    background: #000000;
+    object-fit: cover;
+}
+
+#localVideo {
+    position: absolute;
+    top: max(80px, 10vh);
+    right: 16px;
+    z-index: 5;
+    display: none;
+    width: 100px;
+    height: 150px;
+    border: 2px solid #ffffff;
+    border-radius: 12px;
+    background: #111b21;
+    object-fit: cover;
+}
+
+.app-container.video-call-active #avatar-container {
+    display: none;
+}
+
+.app-container.video-call-active {
+    justify-content: flex-end;
+}
+
+.app-container.video-call-active > .header,
+.app-container.video-call-active > #timer {
+    display: none;
+}
+
+.app-container.video-call-active #remoteVideo {
+    display: block !important;
+}
+
+/* En-têtes */
+.header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 5px;
+    z-index: 10;
+}
+
+.icon-btn-top {
+    flex: initial;
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+}
+
+.contact-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex-grow: 1;
+}
+
+.contact-name {
+    font-size: clamp(16px, 4.5vw, 20px);
+    font-weight: 500;
+}
+
+.encryption-status, .phone-number, .call-status {
+    font-size: clamp(11px, 3vw, 13px);
+    color: #8696a0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+}
+
+/* Centre Avatar */
+.center-avatar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1;
+    width: 100%;
+    padding: 20px 0;
+}
+
+.avatar-container {
+    width: clamp(160px, 45vw, 240px);
+    height: clamp(160px, 45vw, 240px);
+    border-radius: 50%;
+    overflow: hidden;
+    background: linear-gradient(160deg, #2a3942, #1f2c33);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Panels & Boutons d'Appel */
+.control-panel {
+    position: relative;
+    z-index: 4;
+    background-color: #111b21;
+    width: 100%;
+    border-radius: 28px;
+    padding: clamp(20px, 4vh, 28px) 15px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(12px, 3vh, 20px) 10px;
+    justify-items: center;
+    align-items: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+.btn-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.control-btn {
+    flex: initial;
+    background-color: #222d34;
+    border: none;
+    width: clamp(50px, 14vw, 64px);
+    height: clamp(50px, 14vw, 64px);
+    border-radius: 50%;
+    color: #ffffff;
+    font-size: clamp(18px, 5vw, 22px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.control-btn:active {
+    transform: scale(0.95);
+}
+
+.control-btn.hangup {
+    background-color: #ea0038;
+    color: #ffffff;
+}
+
+.btn-label {
+    font-size: clamp(10px, 2.8vw, 12px);
+    color: #8696a0;
+    margin-top: 6px;
+    text-align: center;
+    width: 100%;
+}
+
+.incoming-actions {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 10px 0;
+}
+
+.incoming-btn-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+}
+
+.incoming-btn {
+    border: none;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    color: #ffffff;
+    font-size: 22px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.incoming-btn.refuse {
+    background-color: #ea0038;
+}
+
+.incoming-btn.accept {
+    background-color: #00a884;
+    position: relative;
+    z-index: 5;
+    touch-action: none; /* Empêche le défilement tactile pendant le swipe */
+    transition: transform 0.3s ease;
+}
+
+.incoming-btn.accept:active {
+    cursor: grabbing;
+}
+
+.incoming-btn.message {
+    background-color: #222d34;
+    color: #8696a0;
+}
+
+.incoming-label {
+    font-size: 12px;
+    color: #8696a0;
+    text-align: center;
+    max-width: 100px;
+}
+
+/* Flèches de swipe vers le haut */
+.swipe-arrows {
+    position: absolute;
+    top: -55px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    pointer-events: none;
+}
+
+.swipe-arrows i {
+    font-size: 13px;
+    color: #00a884;
+    opacity: 0;
+    animation: slideUpArrows 1.5s infinite ease-in-out;
+}
+
+.swipe-arrows i:nth-child(1) { animation-delay: 0s; }
+.swipe-arrows i:nth-child(2) { animation-delay: 0.3s; }
+.swipe-arrows i:nth-child(3) { animation-delay: 0.6s; }
+
+/* Animations */
+@keyframes slideUpArrows {
+    0% { transform: translateY(12px); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(-12px); opacity: 0; }
+}
+
+@keyframes vibrate {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    20% { transform: translate(-3px, 2px) rotate(-1deg); }
+    40% { transform: translate(3px, -2px) rotate(1deg); }
+    60% { transform: translate(-2px, -2px) rotate(0deg); }
+    80% { transform: translate(2px, 3px) rotate(1deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.vibrating {
+    animation: vibrate 0.3s infinite ease-in-out;
+}
+
+.control-btn {
+    background-color: #222d34;
+    border: none;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    color: #ffffff;
+    font-size: 22px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.control-btn:active {
+    transform: scale(0.95);
+}
+
+/* État actif du bouton Bluetooth (Vert WhatsApp) */
+.control-btn.active {
+    background-color: #00a884;
+    color: #ffffff;
+}
+
+.btn-label {
+    font-size: 12px;
+    color: #8696a0;
+    margin-top: 6px;
+    text-align: center;
+}

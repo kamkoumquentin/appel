@@ -1,0 +1,206 @@
+/* * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}*/
+
+body {
+    background-color: #f4f6f9;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+} 
+
+.container {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+h2 {
+    text-align: center;
+    color: #333;
+}
+
+.card {
+    background: #ffffff;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.label {
+    font-size: 13px;
+    color: #666;
+}
+
+.id-box {
+    font-size: 20px;
+    font-weight: bold;
+    color: #2c3e50;
+    background: #eef2f5;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-green {
+    background-color: #2ec4b6;
+    color: white;
+}
+
+.btn-red {
+    background-color: #e71d36;
+    color: white;
+}
+
+#btn-copy {
+    background-color: #3a86ff;
+    color: white;
+}
+
+.status-bar {
+    text-align: center;
+    font-size: 14px;
+    color: #555;
+    padding: 8px;
+}
+
+/* Modal pour appel entrant */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    width: 100%;
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.control-btn {
+    background-color: #222d34;
+    border: none;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    color: #ffffff;
+    font-size: 22px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.control-btn:active {
+    transform: scale(0.95);
+}
+
+/* État actif du bouton Bluetooth (Vert WhatsApp) */
+.control-btn.active {
+    background-color: #00a884;
+    color: #ffffff;
+}
+
+.btn-label {
+    font-size: 12px;
+    color: #8696a0;
+    margin-top: 6px;
+    text-align: center;
+}
+
+#room-panel[hidden] {
+    display: none;
+}
+
+.room-code-row,
+.room-join-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.room-code-row .id-box {
+    flex: 1;
+}
+
+.room-join-row input {
+    min-width: 0;
+    flex: 1;
+}
+
+.room-participants {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+}
+
+.room-participants li {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #eef2f5;
+    color: #2c3e50;
+}
+
+.room-error {
+    color: #b42318;
+    font-size: 14px;
+}

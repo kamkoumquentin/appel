@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.example.callapp" version="1.0.0" 
+        xmlns="http://www.w3.org/ns/widgets" 
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>KamSoft</name>
+    <description>
+        A sample Apache Cordova application that responds to the deviceready event.
+    </description>
+    <author email="dev@cordova.apache.org" href="https://cordova.apache.org">
+        Apache Cordova Team
+    </author>
+    <content src="index.html" />
+
+    <!-- 1. RÈGLES DE SÉCURITÉ RESEAU (WHITELIST) -->
+    <!-- Autorise l'application à communiquer avec n'importe quelle adresse IP/domaine -->
+    <access origin="*" />
+    <allow-navigation href="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+
+    <!-- 2. CONFIGURATION SPÉCIFIQUE ANDROID -->
+    <platform name="android">
+        <resource-file src="google-services.json" target="app/google-services.json" />
+        <!-- Permet les requêtes HTTP non chiffrées (Cleartext) vers http://192.168.1.188:3000 -->
+        <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
+            <application android:usesCleartextTraffic="true" />
+        </edit-config>
+
+        <!-- Configuration de l'affichage sur lockscreen pour MainActivity -->
+        <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application/activity[@android:name='MainActivity']">
+            <activity android:showWhenLocked="true" android:turnScreenOn="true" />
+        </edit-config>
+
+        <!-- Demande explicite des permissions réseau et enregistrement audio -->
+        <config-file target="AndroidManifest.xml" parent="/manifest">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+            <uses-permission android:name="android.permission.RECORD_AUDIO" />
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+          <!-- Permissions audio et Bluetooth -->
+            <uses-permission android:name="android.permission.BLUETOOTH" />
+            <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+        <!-- Requis pour Android 12 et supérieur (API 31+) -->
+            <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+        <!-- Requis pour les notifications push sur Android 13+ (API 33+) -->
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+        <!-- Requis pour réveiller et allumer l'écran lors d'un appel entrant -->
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+            <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+            <uses-permission android:name="android.permission.VIBRATE" />
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+        </config-file>
+    </platform>
+</widget>

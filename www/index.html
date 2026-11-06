@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Application d'Appel WebRTC</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/index.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+
+<body>
+  <div class="container">
+    <h2>Appels audio et vidéo P2P</h2>
+    <audio id="remoteAudio" autoplay playsinline></audio>
+
+    <!-- Mon ID généré -->
+    <div class="card">
+      <span class="label">Votre ID d'installation :</span>
+      <div id="my-id-display" class="id-box">Génération...</div>
+      <button id="btn-copy" onclick="copyMyId()">Copier mon ID</button>
+    </div>
+
+    <!-- Zone pour composer un ID -->
+    <div class="card">
+      <label for="target-id-input">ID du destinataire :</label>
+      <input type="text" id="target-id-input" placeholder="Ex: ID-482910" />
+
+      <div class="actions">
+        <button id="btn-call" class="btn-green" onclick="makeCall()">
+          📞 Appeler
+        </button>
+        <button id="btn-video-call" class="btn-green" onclick="makeCall(true)">
+          📹 Appel vidéo
+        </button>
+        <button class="btn-green" onclick="disconnectWebSocket()">
+          Couper le serveur
+        </button>
+        <button id="btn-hangup" class="btn-red" onclick="hangUp(true)" disabled>
+          🚫 Raccrocher
+        </button>
+      </div>
+    </div>
+
+    <section class="card" id="room-lobby">
+      <h3>Réunions</h3>
+      <button class="btn-green" id="btn-create-room" onclick="createRoom()">
+        Créer une réunion
+      </button>
+      <label for="room-code-input">Code de la réunion :</label>
+      <div class="room-join-row">
+        <input type="text" id="room-code-input" maxlength="6" autocomplete="off" placeholder="Ex. ABC234" />
+        <button class="btn-green" id="btn-join-room" onclick="joinRoom()">Rejoindre</button>
+      </div>
+      <p id="room-error" class="room-error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" id="room-panel" aria-live="polite" hidden>
+      <h3>Réunion en cours</h3>
+      <span class="label">Code à partager :</span>
+      <div class="room-code-row">
+        <div id="room-code-display" class="id-box"></div>
+        <button class="btn-green" id="btn-copy-room-code" onclick="copyRoomCode()">Copier</button>
+      </div>
+      <h4>Participants</h4>
+      <ul id="room-participants" class="room-participants"></ul>
+      <button class="btn-red" id="btn-leave-room" onclick="leaveRoom()">Quitter</button>
+    </section>
+
+    <!-- Interface appel en cour emetteur -->
+    <!-- ===== INTERFACE 1 : APPEL EN COURS (CLASSIQUE) ===== -->
+    <div id="interface-1" class="view-container">
+      <div class="app-container">
+        <div class="header">
+          <button class="icon-btn-top" onclick="closeInterface()">
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <div class="contact-info">
+            <span class="contact-name">Junior</span>
+            <div id="status-1" class="status-bar">Hors ligne</div>
+          </div>
+          <button class="icon-btn-top">
+            <i class="fa-solid fa-user-plus"></i>
+          </button>
+        </div>
+        <div class="center" id="timer">00:00:00</div>
+        
+
+        <!-- ============================================== -->
+        <!-- AJOUT DES BALISES VIDÉO ICI                    -->
+        <!-- ============================================== -->
+        <!-- Vidéo du correspondant (Plein écran en fond) -->
+        <video id="remoteVideo" autoplay playsinline></video>
+        
+        <!-- Ta propre vidéo (Miniature flottante) -->
+        <video id="localVideo" autoplay muted playsinline></video>
+        <!-- ============================================== -->
+
+
+        <div class="center-avatar" id="avatar-container" style="z-index: 2;" >
+          <div class="avatar-container">
+            <span style="font-size: 80px; color: #8696a0; font-weight: 600">J</span>
+          </div>
+        </div>
+        <!-- Indicateur de statut -->
+        <!-- <div id="status" class="status-bar">Hors ligne</div> -->
+
+        <div class="control-panel">
+          <div class="btn-wrapper">
+            <button class="control-btn" id="btn-toggle-audio" onclick="toggleBluetooth()">
+              <i class="fa-brands fa-bluetooth-b" id="audio-icon"></i>
+            </button>
+            <span class="btn-label" id="audio-label">Bluetooth</span>
+          </div>
+
+          <!-- <div class="btn-wrapper">
+            <button class="control-btn">
+              <i class="fa-solid fa-video"></i>
+            </button>
+            <span class="btn-label">Vidéo</span>
+          </div> -->
+
+          <div class="btn-wrapper">
+            <button class="control-btn" id="btn-toggle-video" onclick="toggleVideo()" style="z-index: 4;">
+              <i class="fa-solid fa-video" id="video-icon"></i>
+            </button>
+            <span class="btn-label" id="video-label">Vidéo</span>
+          </div>
+
+
+
+          <div class="btn-wrapper">
+            <button class="control-btn" id="btn-toggle-mic" onclick="toggleMicrophone()">
+              <i class="fa-solid fa-microphone" id="mic-icon"></i>
+            </button>
+            <span class="btn-label" id="mic-label">Désactiver le micro</span>
+          </div>
+          <div class="btn-wrapper">
+            <button class="control-btn">
+              <i class="fa-solid fa-ellipsis"></i>
+            </button>
+            <span class="btn-label">Plus</span>
+          </div>
+          <div class="btn-wrapper">
+            <button class="control-btn">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i>
+            </button>
+            <span class="btn-label">Partager</span>
+          </div>
+          <div class="btn-wrapper">
+            <button class="control-btn hangup" onclick="hangUp()">
+              <i class="fa-solid fa-phone-slash"></i>
+            </button>
+            <span class="btn-label">Terminer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- New interface receive call -->
+    <!-- ===== INTERFACE 2 : APPEL ENTRANT ===== -->
+    <div id="interface-2" class="view-container">
+      <div class="app-container">
+        <div class="header" style="justify-content: center">
+          <div class="contact-info">
+            <span class="contact-name">Junior</span>
+            <div id="status-2" class="status-bar">Hors ligne</div>
+          </div>
+        </div>
+        <div class="center-avatar">
+          <div class="avatar-container">
+            <span style="font-size: 80px; color: #8696a0; font-weight: 600">J</span>
+          </div>
+        </div>
+        <div class="incoming-actions">
+          <div class="incoming-btn-wrapper">
+            <button class="incoming-btn refuse" onclick="rejectCall()">
+              <i class="fa-solid fa-phone-slash"></i>
+            </button>
+            <span class="incoming-label">Refuser</span>
+          </div>
+          <div class="incoming-btn-wrapper">
+            <!-- <button class="incoming-btn accept" onclick="acceptCall()">
+                <i class="fa-solid fa-phone"></i>
+              </button> -->
+
+
+              <!-- Bouton pour tourner la caméra (caché par défaut) -->
+          <button class="icon-btn-top" id="btn-switch-camera" onclick="switchCamera()" style="display: none; z-index: 4;">
+            <i class="fa-solid fa-camera-rotate"></i>
+          </button>
+
+
+            <div class="swipe-arrows">
+              <i class="fa-solid fa-chevron-up"></i>
+              <i class="fa-solid fa-chevron-up"></i>
+              <i class="fa-solid fa-chevron-up"></i>
+            </div>
+
+            <!-- C'est ici qu'il faut insérer l'id -->
+            <button class="incoming-btn accept" id="swipeAcceptBtn">
+              <i class="fa-solid fa-phone"></i>
+            </button>
+            <span class="incoming-label">Balayer vers le haut pour accepter</span>
+          </div>
+          <div class="incoming-btn-wrapper">
+            <button class="incoming-btn message">
+              <i class="fa-solid fa-message"></i>
+            </button>
+            <span class="incoming-label">Message</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Indicateur de statut -->
+    <div id="status" class="status-bar">Hors ligne</div>
+  </div>
+
+  <script src="cordova.js"></script>
+  <script src="js/effet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/CallManager.js"></script>
+  <script src="js/RoomManager.js"></script>
+  <script src="js/index.js"></script>
+</body>
+
+</html>

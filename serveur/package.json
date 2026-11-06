@@ -1,0 +1,10 @@
+{
+  "name": "kamsoft-signaling-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dépendances du serveur de signalisation KamSoft",
+  "dependencies": {
+    "firebase-admin": "^14.3.0",
+    "ws": "^8.21.3"
+  }
+}

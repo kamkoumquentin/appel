@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "826636218450",
+    "project_id": "appele-cabac",
+    "storage_bucket": "appele-cabac.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:826636218450:android:e7fe1c04e839146bcc6f8b",
+        "android_client_info": {
+          "package_name": "com.example.callapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3KScvFSai0IgjOGb3IydWCbM01R-abV0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
