@@ -15,6 +15,7 @@ class CallManager {
     this.serverUrl = options.serverUrl || window.APP_CONFIG.serverUrl;
     this.userId = options.userId || localStorage.getItem("app_user_id") || null;
     this.fcmToken = options.fcmToken || localStorage.getItem("app_fcm_token") || null;
+    this.sessionToken = null;
 
     this.iceServers = options.iceServers || window.APP_CONFIG.iceServers;
 
@@ -88,6 +89,12 @@ class CallManager {
     if (!this.userId) {
       this.userId = this.generateUserId();
       localStorage.setItem("app_user_id", this.userId);
+    }
+
+    this.sessionToken = localStorage.getItem("app_session_token");
+    if (!this.sessionToken) {
+      this.sessionToken = crypto.randomUUID();
+      localStorage.setItem("app_session_token", this.sessionToken);
     }
 
     // A. Initialiser les plugins Cordova s'ils sont présents
@@ -212,7 +219,12 @@ class CallManager {
           this.log("📲 Token FCM enregistré :", this.fcmToken.substring(0, 15) + "...");
           
           // 1. Enregistrement par WebSocket
-          this.sendSignal({ type: "REGISTER", id: this.userId, fcmToken: this.fcmToken });
+          this.sendSignal({
+            type: "REGISTER",
+            id: this.userId,
+            sessionToken: this.sessionToken,
+            fcmToken: this.fcmToken
+          });
           
           // 2. Synchronisation de secours par HTTP (garantit que le serveur Render a le token même si WebSocket est coupée)
           this.syncFcmTokenHttp(this.userId, this.fcmToken);
@@ -640,6 +652,7 @@ class CallManager {
         this.sendSignal({
           type: "REGISTER",
           id: this.userId,
+          sessionToken: this.sessionToken,
           fcmToken: this.fcmToken
         });
 

@@ -43,6 +43,7 @@
     }
   },
   "dependencies": {
-    "cordova-plugin-audiotoggle": "1.0.3"
+    "cordova-plugin-audiotoggle": "1.0.3",
+    "ws": "^8.22.1"
   }
 }

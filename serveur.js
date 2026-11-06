@@ -43,6 +43,7 @@ function sauvegarderTokensFCM() {
 chargerTokensFCM();
 
 const utilisateurs = new Map();
+const sessionTokens = new Map(); // identifiant -> jeton de session client
 const userAppStates = new Map(); // identifiant -> isForeground (boolean)
 const userScreenStates = new Map(); // identifiant -> "SCREEN_ON" | "SCREEN_OFF"
 const appels = new Map();
@@ -609,6 +610,14 @@ wss.on("connection", (ws) => {
             return;
         }
 
+        if (
+            (type === "CREATE_ROOM" || type === "JOIN_ROOM" || type === "LEAVE_ROOM") &&
+            !wsClient.sessionAuthenticated
+        ) {
+            envoyerErreurSalle(wsClient, "AUTH_REQUIRED", "Un jeton de session est requis pour gérer les salles.", type);
+            return;
+        }
+
         if (type === "CALLING") return traiterCalling(message);
         if (type === "CALL_ACCEPTED") return traiterCallAccepted(message);
         if (type === "CALL_REJECTED") return traiterCallRejected(message);
@@ -723,19 +732,40 @@ wss.on("connection", (ws) => {
             return;
         }
 
+        const sessionToken = typeof message.sessionToken === "string"
+            ? message.sessionToken.trim()
+            : "";
+        const registeredToken = sessionTokens.get(nouvelIdentifiant);
+
+        if (!sessionToken) {
+            if (registeredToken) {
+                envoyer(wsClient, {
+                    type: "ERROR",
+                    code: "ID_ALREADY_CONNECTED",
+                    message: "Un jeton de session est requis pour cet identifiant."
+                });
+                wsClient.close(1008, "Jeton de session requis");
+                return;
+            }
+            console.warn(`⚠️ Client ancien sans jeton de session : ${nouvelIdentifiant}`);
+        } else if (registeredToken && registeredToken !== sessionToken) {
+            envoyer(wsClient, {
+                type: "ERROR",
+                code: "ID_ALREADY_CONNECTED",
+                message: "Jeton de session invalide pour cet identifiant."
+            });
+            wsClient.close(1008, "Jeton de session invalide");
+            return;
+        } else if (!registeredToken) {
+            sessionTokens.set(nouvelIdentifiant, sessionToken);
+        }
+
+        wsClient.sessionAuthenticated = !!sessionToken;
+
         // Marquer l'ancienne socket avec isReplaced = true AVANT de la fermer
         if (utilisateurs.has(nouvelIdentifiant)) {
             const ancienneWs = utilisateurs.get(nouvelIdentifiant);
             if (ancienneWs && ancienneWs !== wsClient) {
-                if (ancienneWs.readyState === WebSocket.OPEN) {
-                    envoyer(wsClient, {
-                        type: "ERROR",
-                        code: "ID_ALREADY_CONNECTED",
-                        message: "Cet identifiant est déjà connecté."
-                    });
-                    wsClient.close(1008, "Identifiant déjà connecté");
-                    return;
-                }
                 console.log(`🔄 Remplacement de l'ancienne socket pour ${nouvelIdentifiant}`);
                 ancienneWs.isReplaced = true;
                 try { ancienneWs.close(); } catch (e) { }

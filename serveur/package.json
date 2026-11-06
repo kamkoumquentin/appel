@@ -5,6 +5,6 @@
   "description": "Dépendances du serveur de signalisation KamSoft",
   "dependencies": {
     "firebase-admin": "^14.3.0",
-    "ws": "^8.21.3"
+    "ws": "^8.22.1"
   }
 }

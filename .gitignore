@@ -28,3 +28,8 @@ firebase-key.json
 fcm_tokens_cache.json
 node_modules/
 *.zip
+
+firebase-key.json
+fcm_tokens_cache.json
+node_modules/
+*.zip
