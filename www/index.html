@@ -65,6 +65,12 @@
       </div>
       <h4>Participants</h4>
       <ul id="room-participants" class="room-participants"></ul>
+      <p id="room-media-message" class="room-error" role="status" hidden></p>
+      <div class="room-controls">
+        <button id="btn-room-mic" class="btn-green" onclick="toggleRoomMicrophone()">Couper le micro</button>
+        <button id="btn-room-camera" class="btn-green" onclick="toggleRoomCamera()">Couper la caméra</button>
+      </div>
+      <div id="room-video-grid" class="room-video-grid" aria-live="polite"></div>
       <button class="btn-red" id="btn-leave-room" onclick="leaveRoom()">Quitter</button>
     </section>
 
@@ -222,6 +228,7 @@
   <script src="js/effet.js"></script>
   <script src="js/config.js"></script>
   <script src="js/CallManager.js"></script>
+  <script src="js/MeshManager.js"></script>
   <script src="js/RoomManager.js"></script>
   <script src="js/index.js"></script>
 </body>

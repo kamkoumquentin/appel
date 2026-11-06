@@ -482,6 +482,26 @@ function envoyerErreurSalle(ws, code, message, requestType) {
     envoyer(ws, { type: "ROOM_ERROR", code, message, requestType });
 }
 
+function relayerRoomSignalisation(wsClient, from, message) {
+    const type = message.type;
+    const roomId = String(message.roomId || "");
+    const to = String(message.to || "").trim();
+    const room = rooms.get(roomId);
+
+    if (!room || !to || !room.participants.has(from) || !room.participants.has(to)) {
+        envoyerErreurSalle(wsClient, "NOT_IN_ROOM", "L’expéditeur et le destinataire doivent être dans la même salle.", type);
+        return;
+    }
+
+    const recipient = utilisateurs.get(to);
+    if (!recipient || recipient.readyState !== WebSocket.OPEN) {
+        envoyerErreurSalle(wsClient, "NOT_IN_ROOM", "Le destinataire n’est pas connecté dans cette salle.", type);
+        return;
+    }
+
+    envoyer(recipient, { type, roomId, to, from, payload: message.payload });
+}
+
 function fermerSalle(room, reason) {
     room.state = "closed";
     rooms.delete(room.id);
@@ -611,7 +631,8 @@ wss.on("connection", (ws) => {
         }
 
         if (
-            (type === "CREATE_ROOM" || type === "JOIN_ROOM" || type === "LEAVE_ROOM") &&
+            (type === "CREATE_ROOM" || type === "JOIN_ROOM" || type === "LEAVE_ROOM" ||
+                type === "ROOM_OFFER" || type === "ROOM_ANSWER" || type === "ROOM_ICE") &&
             !wsClient.sessionAuthenticated
         ) {
             envoyerErreurSalle(wsClient, "AUTH_REQUIRED", "Un jeton de session est requis pour gérer les salles.", type);
@@ -626,6 +647,9 @@ wss.on("connection", (ws) => {
         if (type === "CREATE_ROOM") return creerSalle(wsClient, identifiant, message);
         if (type === "JOIN_ROOM") return rejoindreSalle(wsClient, identifiant, message);
         if (type === "LEAVE_ROOM") return quitterSalle(wsClient, identifiant, message);
+        if (type === "ROOM_OFFER" || type === "ROOM_ANSWER" || type === "ROOM_ICE") {
+            return relayerRoomSignalisation(wsClient, identifiant, message);
+        }
         if (type === "ICE_CANDIDATE" || type === "WEBRTC_OFFER" || type === "WEBRTC_ANSWER" || type === "renegotiate-offer" || type === "renegotiate-answer") {
             return relayerSignalisation(message);
         }
@@ -637,6 +661,10 @@ wss.on("connection", (ws) => {
     }
 
     function creerSalle(wsClient, participantId, message) {
+        if (utilisateurOccupe(participantId)) {
+            envoyerErreurSalle(wsClient, "CALL_ACTIVE", "Terminez l’appel en cours avant de créer une réunion.", "CREATE_ROOM");
+            return;
+        }
         if (trouverSalleParticipant(participantId)) {
             envoyerErreurSalle(wsClient, "ALREADY_IN_ROOM", "Vous êtes déjà dans une salle.", "CREATE_ROOM");
             return;
@@ -666,6 +694,11 @@ wss.on("connection", (ws) => {
         if (ws.joinRoomAttempts > MAX_JOIN_ATTEMPTS_PER_CONNECTION) {
             envoyerErreurSalle(wsClient, "JOIN_RATE_LIMITED", "Trop de tentatives de rejoindre une salle.", "JOIN_ROOM");
             ws.close(1008, "Too many JOIN_ROOM attempts");
+            return;
+        }
+
+        if (utilisateurOccupe(participantId)) {
+            envoyerErreurSalle(wsClient, "CALL_ACTIVE", "Terminez l’appel en cours avant de rejoindre une réunion.", "JOIN_ROOM");
             return;
         }
 
@@ -851,6 +884,11 @@ wss.on("connection", (ws) => {
 
         if (isCallEnded(callId)) {
             logCall("CALLING_IGNORED", { callId, from, to, info: "callId présent dans endedCalls" });
+            return;
+        }
+
+        if (trouverSalleParticipant(from) || trouverSalleParticipant(to)) {
+            envoyer(ws, { type: "BUSY", from: to, message: "Quittez la réunion avant de passer un appel." });
             return;
         }
 

@@ -7,6 +7,7 @@
 
 let callManager = null;
 let roomManager = null;
+let meshManager = null;
 let callTimerInterval = null;
 let callStartTime = null;
 let currentAudioMode = "EARPIECE"; // EARPIECE | SPEAKER | BLUETOOTH
@@ -163,6 +164,11 @@ async function initApp() {
     },
 
     onIncomingCall: ({ callId, callerId, callerName, hasVideo, isAppVisible }) => {
+      if (roomManager?.isActive) {
+        callManager.rejectCall(callId, "room_active");
+        roomManager.onRoomError({ message: "Un appel entrant a été refusé pendant la réunion." });
+        return;
+      }
       // Si on est déjà en cours d'acceptation ou en communication, NE PAS afficher l'écran d'appel entrant
       if (callManager && (callManager.callState === "ACCEPTING" || callManager.callState === "CONNECTED")) {
         return;
@@ -365,7 +371,15 @@ async function initApp() {
     }
   });
 
-  roomManager = new RoomManager(callManager);
+  meshManager = new MeshManager(callManager, {
+    iceServers: window.APP_CONFIG.iceServers,
+    onLocalStream: renderRoomLocalStream,
+    onRemoteStream: renderRoomRemoteStream,
+    onPeerClosed: removeRoomVideoTile,
+    onMediaError: afficherRoomMediaError,
+    onMediaStateChange: updateRoomMediaButtons
+  });
+  roomManager = new RoomManager(callManager, meshManager);
   roomManager.onRoomCreated = afficherSalle;
   roomManager.onRoomJoined = afficherSalle;
   roomManager.onParticipantJoined = (_participant, room) => afficherSalle(room);
@@ -378,7 +392,10 @@ async function initApp() {
         : "La réunion est terminée."
     );
   };
-  roomManager.onRoomError = ({ message }) => afficherErreurSalle(message);
+  roomManager.onRoomError = ({ message }) => {
+    if (roomManager.room) afficherRoomMediaError(message);
+    else afficherErreurSalle(message);
+  };
 
   // Démarrer CallManager
   const myId = await callManager.init();
@@ -454,6 +471,7 @@ function afficherSalle(room) {
   const panel = document.getElementById("room-panel");
   const codeElement = document.getElementById("room-code-display");
   const participantsList = document.getElementById("room-participants");
+  const videoGrid = document.getElementById("room-video-grid");
 
   if (!lobby || !panel || !codeElement || !participantsList) return;
 
@@ -462,6 +480,8 @@ function afficherSalle(room) {
   if (!room) {
     codeElement.textContent = "";
     participantsList.replaceChildren();
+    videoGrid?.replaceChildren();
+    afficherRoomMediaError("");
     return;
   }
 
@@ -473,7 +493,120 @@ function afficherSalle(room) {
     item.textContent = `${participant.displayName || participant.id}${hostLabel}`;
     participantsList.appendChild(item);
   });
+
+  if (videoGrid) {
+    const participantIds = new Set(room.participants.map((participant) => participant.id));
+    for (const participant of room.participants) {
+      ensureRoomVideoTile(
+        participant.id,
+        participant.displayName || participant.id,
+        participant.id === callManager?.userId
+      );
+    }
+    for (const tile of Array.from(videoGrid.children)) {
+      if (!participantIds.has(tile.dataset.participantId)) tile.remove();
+    }
+  }
   afficherErreurSalle("");
+}
+
+function ensureRoomVideoTile(participantId, displayName, isLocal = false) {
+  const grid = document.getElementById("room-video-grid");
+  if (!grid) return null;
+  let tile = Array.from(grid.children).find((element) => element.dataset.participantId === participantId);
+  if (tile) {
+    const name = tile.querySelector(".room-video-name");
+    if (name) name.textContent = isLocal ? `${displayName} (vous)` : displayName;
+    return tile;
+  }
+
+  tile = document.createElement("article");
+  tile.className = "room-video-tile";
+  tile.dataset.participantId = participantId;
+
+  const video = document.createElement("video");
+  video.autoplay = true;
+  video.playsInline = true;
+  video.muted = isLocal;
+  video.hidden = true;
+
+  const placeholder = document.createElement("div");
+  placeholder.className = "room-video-placeholder";
+  placeholder.textContent = "Caméra désactivée";
+
+  const name = document.createElement("span");
+  name.className = "room-video-name";
+  name.textContent = isLocal ? `${displayName} (vous)` : displayName;
+
+  tile.append(video, placeholder, name);
+  grid.appendChild(tile);
+  return tile;
+}
+
+function renderRoomLocalStream(stream) {
+  if (!callManager?.userId) return;
+  const participant = roomManager?.room?.participants.find((item) => item.id === callManager.userId);
+  const tile = ensureRoomVideoTile(
+    callManager.userId,
+    participant?.displayName || callManager.userId,
+    true
+  );
+  if (!tile) return;
+  const video = tile.querySelector("video");
+  const placeholder = tile.querySelector(".room-video-placeholder");
+  video.srcObject = stream;
+  video.hidden = !stream;
+  placeholder.hidden = !!stream;
+}
+
+function renderRoomRemoteStream(participantId, stream) {
+  const participant = roomManager?.room?.participants.find((item) => item.id === participantId);
+  const tile = ensureRoomVideoTile(
+    participantId,
+    participant?.displayName || participantId
+  );
+  if (!tile) return;
+  const video = tile.querySelector("video");
+  video.srcObject = stream;
+  video.hidden = false;
+  tile.querySelector(".room-video-placeholder").hidden = true;
+  video.play().catch((error) => console.warn("[UI] Lecture de la vidéo de réunion impossible :", error));
+}
+
+function removeRoomVideoTile(participantId) {
+  const grid = document.getElementById("room-video-grid");
+  const tile = grid && Array.from(grid.children).find(
+    (element) => element.dataset.participantId === participantId
+  );
+  if (tile) tile.remove();
+}
+
+function afficherRoomMediaError(message) {
+  const errorElement = document.getElementById("room-media-message");
+  if (!errorElement) return;
+  errorElement.textContent = message;
+  errorElement.hidden = !message;
+}
+
+function updateRoomMediaButtons(state) {
+  const micButton = document.getElementById("btn-room-mic");
+  const cameraButton = document.getElementById("btn-room-camera");
+  if (micButton) {
+    micButton.disabled = !state.audio.available;
+    micButton.textContent = state.audio.available && state.audio.enabled ? "Couper le micro" : "Activer le micro";
+  }
+  if (cameraButton) {
+    cameraButton.disabled = !state.video.available;
+    cameraButton.textContent = state.video.available && state.video.enabled ? "Couper la caméra" : "Activer la caméra";
+  }
+}
+
+function toggleRoomMicrophone() {
+  meshManager?.toggleAudio();
+}
+
+function toggleRoomCamera() {
+  meshManager?.toggleVideo();
 }
 
 function afficherErreurSalle(message) {
@@ -517,6 +650,10 @@ async function requestWebNotificationPermission() {
    ========================================================================== */
 
 async function makeCall(withVideo = false) {
+  if (roomManager?.isActive) {
+    afficherErreurSalle("Quittez la réunion avant de passer un appel.");
+    return;
+  }
   const targetInput = document.getElementById("target-id-input");
   const targetId = targetInput ? targetInput.value.trim() : "";
 
@@ -537,6 +674,11 @@ async function makeCall(withVideo = false) {
 }
 
 function acceptCall(source = "ui") {
+  if (roomManager?.isActive) {
+    callManager?.rejectCall(callManager.currentCallId, "room_active");
+    afficherErreurSalle("Quittez la réunion avant d’accepter un appel.");
+    return;
+  }
   hideIncomingCallUI();
   if (callManager) {
     showActiveCallUI(callManager.targetUserId || callManager.currentCallerId);
@@ -549,6 +691,11 @@ window.acceptCall = acceptCall;
 window.requestAcceptCall = (callId, source) => acceptCall(source);
 window.acceptCallAction = (data) => {
   console.log("⚡ window.acceptCallAction déclenché", data);
+  if (roomManager?.isActive) {
+    callManager?.rejectCall(callManager.currentCallId || data?.callId, "room_active");
+    afficherErreurSalle("Quittez la réunion avant d’accepter un appel.");
+    return;
+  }
   if (callManager) {
     callManager.handlePushNotification({
       ...(data || {}),
