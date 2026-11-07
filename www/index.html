@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Application d'Appel WebRTC</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="css/index.css" />
@@ -12,20 +12,38 @@
 
 <body>
   <div class="container">
+    <section class="card auth-card" id="auth-panel" aria-labelledby="auth-title" hidden>
+      <h2 id="auth-title">Connexion à KamSoft</h2>
+      <form id="auth-form" onsubmit="submitAuthentication(event)">
+        <label id="auth-name-label" for="auth-name">Nom</label>
+        <input id="auth-name" type="text" maxlength="60" autocomplete="name" />
+        <label for="auth-phone">Numéro de téléphone</label>
+        <input id="auth-phone" type="tel" maxlength="20" autocomplete="tel" placeholder="+33612345678" required />
+        <label for="auth-pin">PIN (4 à 12 chiffres)</label>
+        <input id="auth-pin" type="password" inputmode="numeric" minlength="4" maxlength="12" autocomplete="current-password" required />
+        <p id="auth-error" class="room-error" role="alert" hidden></p>
+        <button id="auth-submit" class="btn-green" type="submit">Se connecter</button>
+      </form>
+      <button id="auth-mode-toggle" type="button" onclick="toggleAuthenticationMode()">Créer un compte</button>
+    </section>
+    <div id="app-content" hidden>
     <h2>Appels audio et vidéo P2P</h2>
     <audio id="remoteAudio" autoplay playsinline></audio>
 
     <!-- Mon ID généré -->
     <div class="card">
-      <span class="label">Votre ID d'installation :</span>
+      <span class="label">Votre numéro :</span>
       <div id="my-id-display" class="id-box">Génération...</div>
-      <button id="btn-copy" onclick="copyMyId()">Copier mon ID</button>
+      <div id="my-name-display" class="label"></div>
+      <button id="btn-copy" onclick="copyMyId()">Copier mon numéro</button>
+      <button type="button" onclick="logout()">Se déconnecter</button>
     </div>
 
     <!-- Zone pour composer un ID -->
     <div class="card">
-      <label for="target-id-input">ID du destinataire :</label>
-      <input type="text" id="target-id-input" placeholder="Ex: ID-482910" />
+      <label for="target-id-input">Numéro du destinataire :</label>
+      <input type="tel" id="target-id-input" placeholder="+33612345678" onchange="lookupRecipient()" />
+      <span id="recipient-name" class="label" aria-live="polite"></span>
 
       <div class="actions">
         <button id="btn-call" class="btn-green" onclick="makeCall()">
@@ -56,22 +74,178 @@
       <p id="room-error" class="room-error" role="alert" hidden></p>
     </section>
 
-    <section class="card" id="room-panel" aria-live="polite" hidden>
-      <h3>Réunion en cours</h3>
-      <span class="label">Code à partager :</span>
-      <div class="room-code-row">
-        <div id="room-code-display" class="id-box"></div>
-        <button class="btn-green" id="btn-copy-room-code" onclick="copyRoomCode()">Copier</button>
+    <section class="card room-prejoin" id="room-prejoin" aria-labelledby="room-prejoin-title" hidden>
+      <h3 id="room-prejoin-title">Avant de participer</h3>
+      <div class="room-prejoin-layout">
+        <div class="room-preview-column">
+          <div class="room-preview-stage">
+            <video id="room-preview-video" autoplay muted playsinline hidden></video>
+            <div id="room-preview-placeholder" class="room-preview-placeholder">Aperçu caméra indisponible</div>
+            <div class="room-preview-controls" aria-label="Réglages rapides des médias">
+              <button id="btn-prejoin-mic" class="room-icon-button" type="button"
+                onclick="togglePreMeetingMicrophone()" aria-label="Couper le micro" title="Couper le micro" aria-pressed="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /><path class="room-icon-slash" d="m4 4 16 16" /></svg>
+              </button>
+              <button id="btn-prejoin-camera" class="room-icon-button" type="button"
+                onclick="togglePreMeetingCamera()" aria-label="Couper la caméra" title="Couper la caméra" aria-pressed="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3z" /><path class="room-icon-slash" d="m4 4 16 16" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="room-prejoin-settings">
+          <label for="room-display-name">Votre nom (1 à 30 caractères)</label>
+          <input id="room-display-name" type="text" minlength="1" maxlength="30" autocomplete="name" />
+          <p id="room-prejoin-error" class="room-error" role="alert" hidden></p>
+          <details class="room-device-settings">
+            <summary>Paramètres</summary>
+            <label for="room-audio-device">Microphone</label>
+            <select id="room-audio-device"></select>
+            <label for="room-video-device">Caméra</label>
+            <select id="room-video-device"></select>
+          </details>
+          <div class="room-prejoin-actions">
+            <button class="btn-red" type="button" onclick="cancelRoomPreMeeting()">Annuler</button>
+            <button id="btn-participate-room" class="btn-green room-participate-button" type="button"
+              onclick="participateRoom()" aria-busy="false">
+              <span id="btn-participate-room-label">Participer</span>
+            </button>
+          </div>
+        </div>
       </div>
-      <h4>Participants</h4>
-      <ul id="room-participants" class="room-participants"></ul>
-      <p id="room-media-message" class="room-error" role="status" hidden></p>
-      <div class="room-controls">
-        <button id="btn-room-mic" class="btn-green" onclick="toggleRoomMicrophone()">Couper le micro</button>
-        <button id="btn-room-camera" class="btn-green" onclick="toggleRoomCamera()">Couper la caméra</button>
+    </section>
+
+    <section class="card room-panel" id="room-panel" aria-label="Réunion en cours" hidden>
+      <div class="room-stage">
+        <header class="room-header">
+          <div class="room-header-copy">
+            <h2>Réunion</h2>
+            <div class="room-info-bar" aria-label="Informations de réunion">
+              <span class="room-code-label">Code de réunion</span>
+              <strong id="room-code-display"></strong>
+              <button class="room-icon-button room-copy-button" id="btn-copy-room-code" type="button"
+                onclick="copyRoomCode()" aria-label="Copier le code de réunion" title="Copier le code">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></svg>
+              </button>
+              <span id="room-lock-indicator" class="room-lock-indicator" role="status" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+                Salle verrouillée
+              </span>
+              <span id="room-copy-feedback" class="room-copy-feedback" role="status" aria-live="polite" hidden></span>
+            </div>
+          </div>
+          <div class="room-live-messages">
+            <div id="room-notification" class="room-toast-region" role="status" aria-live="polite" aria-relevant="additions"></div>
+          </div>
+        </header>
+
+        <div class="room-content">
+          <div id="room-video-grid" class="room-video-grid" aria-label="Vidéos des participants"></div>
+          <div id="room-empty-state" class="room-empty-state" hidden>
+            <p>Vous êtes seul dans la réunion. Partagez le code pour inviter quelqu'un.</p>
+            <button class="room-empty-copy" type="button" onclick="copyRoomCode()">Copier le code</button>
+          </div>
+          <aside id="room-side-panel" class="room-side-panel" aria-label="Panneau de réunion"
+            aria-hidden="true" inert>
+            <header class="room-side-panel-header">
+              <h2 id="room-side-panel-title">Chat</h2>
+              <button id="btn-room-panel-close" class="room-icon-button room-panel-close" type="button"
+                onclick="closeRoomSidePanel()" aria-label="Fermer le panneau" title="Fermer le panneau">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+              </button>
+            </header>
+            <section id="room-chat-panel" class="room-chat-panel" aria-label="Messages de la réunion" hidden>
+              <div id="room-chat-messages" class="room-chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div>
+              <button id="room-chat-new-messages" class="room-chat-new-messages" type="button"
+                onclick="scrollRoomChatToLatest()" hidden>Nouveaux messages ↓</button>
+              <p id="room-chat-error" class="room-error" role="alert" hidden></p>
+              <div class="room-chat-composer">
+                <div id="room-chat-file-preview" class="room-chat-file-preview" aria-live="polite" hidden>
+                  <div id="room-chat-file-preview-content" class="room-chat-file-preview-content"></div>
+                  <button id="btn-room-chat-file-cancel" class="room-chat-icon-button" type="button"
+                    onclick="cancelRoomFilePreview()" aria-label="Annuler la pièce jointe" title="Annuler">×</button>
+                </div>
+                <div id="room-chat-upload-progress" class="room-chat-upload-progress" role="status" aria-live="polite" hidden>
+                  <span id="room-chat-upload-label">Envoi en cours…</span>
+                  <progress aria-label="Progression de l’envoi"></progress>
+                </div>
+                <div id="room-voice-recording" class="room-voice-recording" role="status" hidden>
+                  <span>Enregistrement en cours…</span>
+                  <time id="room-voice-duration">00:00</time>
+                  <button id="btn-room-voice-cancel" class="room-chat-icon-button" type="button"
+                    onclick="cancelRoomVoiceRecording()" aria-label="Annuler l’enregistrement">Annuler</button>
+                </div>
+                <div class="room-chat-compose">
+                  <input id="room-chat-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,audio/*" hidden>
+                  <button id="btn-room-chat-attach" class="room-chat-icon-button" type="button"
+                    onclick="document.getElementById('room-chat-file').click()" aria-label="Joindre un fichier" title="Joindre un fichier">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12.5 7.1-7.1a4 4 0 0 1 5.7 5.7l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2" /></svg>
+                  </button>
+                  <button id="btn-room-voice-record" class="room-chat-icon-button" type="button"
+                    onclick="toggleRoomVoiceRecording()" aria-label="Enregistrer un message vocal" title="Enregistrer un message vocal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /></svg>
+                  </button>
+                  <label class="sr-only" for="room-chat-input">Votre message</label>
+                  <textarea id="room-chat-input" rows="2" maxlength="500" aria-describedby="room-chat-counter"></textarea>
+                </div>
+                <div class="room-chat-footer">
+                  <span id="room-chat-counter" class="room-chat-counter">0 / 500</span>
+                  <button id="btn-room-chat-send" class="btn-green" type="button" onclick="sendRoomChatMessage()">Envoyer</button>
+                </div>
+              </div>
+            </section>
+            <section id="room-participants-panel" class="room-participants-panel" aria-label="Participants" hidden>
+              <div id="room-host-controls" class="room-host-controls" hidden>
+                <button id="btn-room-mute-all" type="button" onclick="muteAllRoomParticipants()">Couper tous les micros</button>
+                <button id="btn-room-lock" type="button" onclick="toggleRoomLock()">Verrouiller la salle</button>
+              </div>
+              <ul id="room-participants" class="room-participants" aria-live="polite" aria-relevant="additions removals"></ul>
+            </section>
+          </aside>
+        </div>
+        <div id="room-image-viewer" class="room-image-viewer" role="dialog" aria-modal="true"
+          aria-label="Aperçu de l’image" hidden onclick="closeRoomImageViewer(event)">
+          <button id="room-image-viewer-close" class="room-image-viewer-close" type="button" aria-label="Fermer l’aperçu"
+            onclick="closeRoomImageViewer(event)">×</button>
+          <img id="room-image-viewer-image" alt="Image agrandie">
+        </div>
+
+        <nav class="room-controls" aria-label="Contrôles de réunion">
+          <button id="btn-room-layout" class="room-icon-button" type="button" onclick="toggleRoomLayoutMode()"
+            aria-label="Passer à la vue orateur" title="Passer à la vue orateur (L)" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path class="room-layout-icon-gallery" d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z" />
+              <path class="room-layout-icon-speaker" d="M3 4h12v16H3zM17 4h4v4h-4zM17 10h4v4h-4zM17 16h4v4h-4z" />
+            </svg>
+          </button>
+          <button id="btn-room-mic" class="room-icon-button" type="button" onclick="toggleRoomMicrophone()"
+            aria-label="Couper le micro" title="Couper le micro (M)" aria-pressed="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /><path class="room-icon-slash" d="m4 4 16 16" /></svg>
+          </button>
+          <button id="btn-room-camera" class="room-icon-button" type="button" onclick="toggleRoomCamera()"
+            aria-label="Couper la caméra" title="Couper la caméra (V)" aria-pressed="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3z" /><path class="room-icon-slash" d="m4 4 16 16" /></svg>
+          </button>
+          <button id="btn-room-hand" class="room-icon-button" type="button" onclick="toggleRoomHand()"
+            aria-label="Lever la main" title="Lever la main" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11V5a2 2 0 0 1 4 0v5-7a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v8c0 5-3 8-8 8h-1c-3 0-5-2-6-4l-2-4a2 2 0 0 1 3-2l2 2Z" /></svg>
+          </button>
+          <button id="btn-room-chat" class="room-icon-button" type="button" onclick="toggleRoomChat()"
+            aria-label="Ouvrir le chat" title="Ouvrir le chat (C)" aria-expanded="false" aria-controls="room-side-panel">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 1 1 20 11.5Z" /><path d="M8 11h.01M12 11h.01M16 11h.01" /></svg>
+            <span id="room-chat-unread" class="room-chat-unread" hidden>0</span>
+          </button>
+          <button id="btn-room-participants" class="room-icon-button" type="button" onclick="toggleRoomParticipants()"
+            aria-label="Afficher les participants" title="Afficher les participants (P)" aria-expanded="false" aria-controls="room-side-panel">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" /><path d="M3 20v-1a6 6 0 0 1 12 0v1M16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4.5v1" /></svg>
+          </button>
+          <span class="room-control-separator" aria-hidden="true"></span>
+          <button class="room-icon-button room-leave-button" id="btn-leave-room" type="button" onclick="leaveRoom()"
+            aria-label="Quitter la réunion" title="Quitter la réunion">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13.5a13 13 0 0 1 16 0M7 17a8 8 0 0 1 10 0M10 20a3 3 0 0 1 4 0" /><path d="M12 3v7" /></svg>
+          </button>
+        </nav>
       </div>
-      <div id="room-video-grid" class="room-video-grid" aria-live="polite"></div>
-      <button class="btn-red" id="btn-leave-room" onclick="leaveRoom()">Quitter</button>
     </section>
 
     <!-- Interface appel en cour emetteur -->
@@ -222,6 +396,7 @@
 
     <!-- Indicateur de statut -->
     <div id="status" class="status-bar">Hors ligne</div>
+    </div>
   </div>
 
   <script src="cordova.js"></script>

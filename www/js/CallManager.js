@@ -14,6 +14,8 @@ class CallManager {
     // Configuration Serveur & Utilisateur
     this.serverUrl = options.serverUrl || window.APP_CONFIG.serverUrl;
     this.userId = options.userId || localStorage.getItem("app_user_id") || null;
+    this.jwtToken = options.jwtToken || localStorage.getItem("app_jwt_token") || null;
+    this.accountName = options.accountName || localStorage.getItem("app_user_name") || "";
     this.fcmToken = options.fcmToken || localStorage.getItem("app_fcm_token") || null;
     this.sessionToken = null;
 
@@ -59,6 +61,7 @@ class CallManager {
     this.pendingIceCandidates = [];
     this.videoDiagnosticsInterval = null;
     this.videoDiagnosticsInFlight = false;
+    this.loggedIcePairs = new Set();
 
     // Cache anti-replay (TTL 60s)
     this.endedCalls = new Map();
@@ -86,14 +89,15 @@ class CallManager {
 
   async init() {
     this.log("Initialisation du CallManager...");
-    if (!this.userId) {
-      this.userId = this.generateUserId();
-      localStorage.setItem("app_user_id", this.userId);
+    if (!this.userId || !this.jwtToken) {
+      throw new Error("Connectez-vous avant d’initialiser les appels.");
     }
 
     this.sessionToken = localStorage.getItem("app_session_token");
     if (!this.sessionToken) {
-      this.sessionToken = crypto.randomUUID();
+      this.sessionToken = typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
       localStorage.setItem("app_session_token", this.sessionToken);
     }
 
@@ -120,10 +124,6 @@ class CallManager {
     }, 30000);
 
     return this.userId;
-  }
-
-  generateUserId() {
-    return "ID-" + Math.floor(100000 + Math.random() * 900000);
   }
 
   log(event, details = {}) {
@@ -222,6 +222,7 @@ class CallManager {
           this.sendSignal({
             type: "REGISTER",
             id: this.userId,
+            jwt: this.jwtToken,
             sessionToken: this.sessionToken,
             fcmToken: this.fcmToken
           });
@@ -451,6 +452,7 @@ class CallManager {
     const callId  = ad.callId  || data.callId  || ad.call_id  || data.call_id  || null;
     const caller  = ad.callerId || ad.caller_name || ad.appelant || ad.from
                  || data.callerId || data.caller_name || data.appelant || data.from || null;
+    const callerName = ad.callerName || ad.caller_name || data.callerName || data.caller_name || caller;
 
     // Offre WebRTC — BUG 4 FIX : chercher dans les deux niveaux
     const offer = ad.offer || data.offer || null;
@@ -467,7 +469,7 @@ class CallManager {
     const rawHasVideo = ad.hasVideo !== undefined ? ad.hasVideo : data.hasVideo;
     const hasVideo = rawHasVideo === true || rawHasVideo === "true" || rawHasVideo === "1";
 
-    return { actionCallback, callAction, type, callId, caller, offer, hasVideo,
+    return { actionCallback, callAction, type, callId, caller, callerName, offer, hasVideo,
              isAccepted, isRejected, isCancel, isIncoming };
   }
   // ──────────────────────────────────────────────────────────────────────────
@@ -476,7 +478,7 @@ class CallManager {
     if (!data) return;
 
     // ── BUG 2 FIX : utiliser le helper normalisé ────────────────────────────
-    const { callId, caller, offer, hasVideo, isAccepted, isRejected, isCancel, isIncoming } =
+    const { callId, caller, callerName, offer, hasVideo, isAccepted, isRejected, isCancel, isIncoming } =
       this._extractPushData(data);
     // ────────────────────────────────────────────────────────────────────────
 
@@ -530,7 +532,7 @@ class CallManager {
       this.callState = "RINGING";
 
       const ad = (data && data.additionalData) || {};
-      const signal = { from: caller, callId: callId, offer: offer, hasVideo: hasVideo };
+      const signal = { from: caller, callerName, callId: callId, offer: offer, hasVideo: hasVideo };
 
       // Action exécutée si l'écran est en veille (TEST 2)
       const lancerReveilVeille = () => {
@@ -590,15 +592,19 @@ class CallManager {
     });
 
     // 2. Envoi par HTTP de secours (garantit la transmission même si socket en veille)
-    try {
-      if (this.userId && this.serverUrl) {
-        const httpUrl = this.serverUrl.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://");
-        fetch(`${httpUrl}/set-screen-state?id=${encodeURIComponent(this.userId)}&state=${encodeURIComponent(screenState)}`, {
-          method: "GET",
-          mode: "cors"
-        }).catch(() => {});
-      }
-    } catch (e) {}
+    if (this.userId && this.jwtToken) {
+      const httpUrl = this.serverUrl.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://");
+      fetch(`${httpUrl}/set-screen-state`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.jwtToken}`
+        },
+        body: JSON.stringify({ state: screenState })
+      }).then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      }).catch((error) => console.warn("[CallManager] Synchronisation de l’état écran impossible :", error));
+    }
 
     this.log(`📱 État d'écran envoyé au serveur : ${screenState}`);
   }
@@ -608,11 +614,18 @@ class CallManager {
     if (!userId || !token) return;
     try {
       const httpUrl = this.serverUrl.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://");
-      const url = `${httpUrl}/register-token?id=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
-      await fetch(url, { method: "GET", mode: "cors" });
+      const response = await fetch(`${httpUrl}/register-token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.jwtToken}`
+        },
+        body: JSON.stringify({ token })
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       this.log("✅ Token FCM synchronisé par HTTP avec le serveur Render");
-    } catch (e) {
-      // Ignorer silencieusement si hors ligne
+    } catch (error) {
+      console.warn("[CallManager] Synchronisation du token FCM impossible :", error);
     }
   }
 
@@ -652,6 +665,7 @@ class CallManager {
         this.sendSignal({
           type: "REGISTER",
           id: this.userId,
+          jwt: this.jwtToken,
           sessionToken: this.sessionToken,
           fcmToken: this.fcmToken
         });
@@ -899,7 +913,7 @@ class CallManager {
         this.onIncomingCall({
           callId: this.currentCallId,
           callerId: from || this.currentCallerId,
-          callerName: from || this.currentCallerId,
+          callerName: message.callerName || from || this.currentCallerId,
           hasVideo: this.hasVideo,
           isAppVisible: true
         });
@@ -937,7 +951,8 @@ class CallManager {
 
     this.callState = "RINGING";
     this.log("🔔 Appel entrant reçu", { from, callId, forceShowUI });
-    this.onStatusChange(`Appel entrant de ${from}`);
+    const callerName = message.callerName || from;
+    this.onStatusChange(`Appel entrant de ${callerName}`);
 
     // ── BUG 1 FIX : marquer cet appel comme traité ───────────────────────────
     this._lastIncomingCallId = callId ? String(callId) : null;
@@ -949,11 +964,11 @@ class CallManager {
 
     const afficherAppelUI = () => {
       this.startRingtone();
-      this._showWebNotification(from || "Correspondant");
+      this._showWebNotification(callerName || "Correspondant");
       this.onIncomingCall({
         callId: this.currentCallId,
         callerId: from,
-        callerName: from,
+        callerName,
         hasVideo: this.hasVideo,
         isAppVisible: isAppVisible || forceShowUI
       });
@@ -1337,6 +1352,7 @@ class CallManager {
   async createPeerConnection() {
     if (this.peerConnection) return this.peerConnection;
 
+    this.loggedIcePairs.clear();
     this.peerConnection = new RTCPeerConnection({ iceServers: this.iceServers });
 
     // Keep a video transceiver in audio calls so either participant can enable
@@ -1409,6 +1425,7 @@ class CallManager {
     this.peerConnection.onconnectionstatechange = () => {
       this.log(`État connexion WebRTC : ${this.peerConnection.connectionState}`);
       if (this.peerConnection.connectionState === "connected") {
+        this.logSelectedIceCandidatePair(this.peerConnection);
         this.onCallConnected({ callId: this.currentCallId, targetId: this.targetUserId, stream: this.remoteStream });
       } else if (this.peerConnection.connectionState === "disconnected" || this.peerConnection.connectionState === "failed") {
         this.onStatusChange("Connexion instable...");
@@ -1417,6 +1434,40 @@ class CallManager {
 
     this.startVideoDiagnostics();
     return this.peerConnection;
+  }
+
+  async logSelectedIceCandidatePair(peerConnection) {
+    try {
+      const stats = await peerConnection.getStats();
+      const reports = new Map();
+      stats.forEach((report) => reports.set(report.id, report));
+      let pair = null;
+      stats.forEach((report) => {
+        if (report.type === "transport" && report.selectedCandidatePairId) {
+          pair = reports.get(report.selectedCandidatePairId) || pair;
+        }
+      });
+      if (!pair) {
+        stats.forEach((report) => {
+          if (report.type === "candidate-pair" && report.state === "succeeded" &&
+              (report.selected || report.nominated)) pair = report;
+        });
+      }
+      if (!pair) return;
+      const local = reports.get(pair.localCandidateId);
+      const remote = reports.get(pair.remoteCandidateId);
+      const localType = local?.candidateType || "unknown";
+      const remoteType = remote?.candidateType || "unknown";
+      const type = localType === "relay" || remoteType === "relay"
+        ? "relay"
+        : localType === "srflx" || remoteType === "srflx" ? "srflx" : "host";
+      const pairKey = `${pair.id}:${localType}:${remoteType}`;
+      if (this.loggedIcePairs.has(pairKey)) return;
+      this.loggedIcePairs.add(pairKey);
+      this.log(`ICE candidate pair retenu: type=${type}, local=${localType}, remote=${remoteType}`);
+    } catch (error) {
+      console.warn("[CallManager] Lecture du candidat ICE retenu impossible :", error);
+    }
   }
 
   startVideoDiagnostics() {
